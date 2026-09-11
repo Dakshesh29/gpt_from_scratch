@@ -1,10 +1,9 @@
-# implementing attention mechanism 
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class Attention(nn.Module):
+
+class Head(nn.Module):
     def __init__(self, d_in, d_out, block_size, dropout=0.1):
         super().__init__()
         self.d_in = d_in
@@ -25,7 +24,6 @@ class Attention(nn.Module):
 
         scores = torch.bmm(queries, keys.transpose(1, 2))
         scores = scores / (self.d_out ** 0.5)
-
         scores = scores.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
 
         attention = F.softmax(scores, dim=2)
@@ -33,4 +31,22 @@ class Attention(nn.Module):
 
         hidden_states = torch.bmm(attention, values)
         return hidden_states
+
+
+class MultiHeadAttention(nn.Module):
+    def __init__(self, num_heads, d_in, d_out, block_size, dropout=0.1):
+        super().__init__()
+        self.heads = nn.ModuleList([
+            Head(d_in=d_in, d_out=d_out, block_size=block_size, dropout=dropout)
+            for _ in range(num_heads)
+        ])
+
+        self.proj = nn.Linear(num_heads * d_out, num_heads * d_out)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        out = torch.cat([head(x) for head in self.heads], dim=-1)
+        out = self.proj(out)
+        out = self.dropout(out)
+        return out
 
